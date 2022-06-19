@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    volumes:
+      - ./laravel:/var/www/
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+      # - ./docker/nginx/log:/var/log/nginx
+
+  api:
+    build: ./docker/php
+    user: 1000:1000
+    restart: unless-stopped
+    volumes:
+      - ./laravel:/var/www/
+      - ./docker/php/app.ini:/usr/local/etc/php/conf.d/app.ini
+
+  db:
+    image: mysql:8.0
+    user: 1000:1000
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - ./docker/mysql/data:/var/lib/mysql
