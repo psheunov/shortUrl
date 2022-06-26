@@ -1,79 +1,47 @@
 <?php
-
+declare(strict_types=1);
 
 namespace App\Facades;
 
 
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
+use App\Result\Result;
+use App\Service\LinkCreatorService;
+use App\Validator\LinkValidator;
 use App\Models\Link as LinkModel;
 
 class Link
 {
-    private static function validate($data)
-    {
-        $result = [
-            'status' => 'success',
-        ];
-        $rules = [
-            'long_url'  => 'required|url',
-            //'short_url' => 'required|unique:links',
-            'title'     => 'string|max:200',
-            'tags'      => 'array',
-        ];
-
-        $validator = Validator::make($data, $rules);
-        if (!empty($validator->errors()->messages())) {
-            $result = [
-                'status'   => 'error',
-                'messages' => $validator->errors()->messages()
-            ];
-        }
-        return $result;
-    }
-
     /**
-     * @param array $links
+     * @param array $data
+     * @return \App\Result\Result
+     * @throws \Exception
      */
-    public static function create(array $links): array
+    public static function create(array $data): Result
     {
-        $result = [];
-        foreach ($links as $link) {
-            $link['short_url'] = self::makeShortUrl();
-            $validator = self::validate($link);
+        return (new LinkCreatorService($data))->create();
+    }
 
-            if ($validator['status'] != 'error') {
-                $link['title'] = $link['title'] ?? null;
-                $link['tags'] = isset($link['tags']) ? json_encode($link['tags']) : null;
-                //сформировать ответ
-                LinkModel::create($link);
+    public static function update(LinkModel $link, array $data): Result
+    {
+        $result = new Result();
+
+        try {
+            $validator = LinkValidator::updateValidation($data);
+
+            if ($validator->fails()) {
+                $result->setStatus(400);
+                $result->addMessage($validator->getMessageBag()->toArray());
+            } else {
+                $link->title = $data['title'] ?? $link->title;
+                $link->tags = $data['tags'] ?? $link->tags;
+                $link->save();
+                $result->addMessage('Link updated successfully');
             }
-            $result[] = $validator;
+        } catch (\Exception $e) {
+            $result->setStatus(500);
+            $result->addMessage('Server error');
         }
 
         return $result;
-    }
-
-    public static function update(LinkModel $link, array $data): array
-    {
-        $validator = self::validate($data);
-        if ($validator['status'] != 'error') {
-            $link->title = $data['title'] ??  $link->title;
-            $link->tags = isset($data['tags'] ) ? json_encode($data['tags']) : $link->tags;
-            $link->long_url = $data['long_url'] ?? $link->long_url;
-            $link->save();
-        }
-
-        return $validator;
-    }
-
-    private static function makeShortUrl(): string
-    {
-        $url = Str::random(random_int(3, 8));
-
-        while (LinkModel::where('short_url', '=', $url)->first()) {
-            $url = Str::random(random_int(3, 6));
-        }
-        return Str::lower($url);
     }
 }

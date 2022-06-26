@@ -1,9 +1,13 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
 use App\Facades\Link as LinkFacade;
 use App\Helpers\VisitorStatistic;
+use App\Http\Filters\LinksFilter;
+use App\Http\Filters\QueryFilter;
+use App\Http\Filters\VisitorsFilter;
 use App\Models\Link;
 use App\Models\Visitor;
 use Carbon\Carbon;
@@ -17,18 +21,15 @@ class LinkController extends Controller
 {
     /**
      * @param Request $request
-     * @return mixed|\Symfony\Component\HttpFoundation\ParameterBag|null
+     * @return mixed
+     * @throws Exception
      */
     public function store(Request $request): mixed
     {
-        try {
-            $response = $request->json()->all();
-            $response = isset($response['long_url']) ? [$response] : $response;
+        $data = $request->json()->all();
+        $result = LinkFacade::create($data);
 
-            return \request()->json(200, LinkFacade::create($response));
-        } catch (Exception $e) {
-            return \request()->json(200, ['message' => $e->getMessage()]);
-        }
+        return \request()->json($result->getStatus(), $result);
     }
 
     /**
@@ -38,7 +39,8 @@ class LinkController extends Controller
      */
     public function patch(Link $link, Request $request): mixed
     {
-        return \request()->json(200, LinkFacade::update($link, $request->json()->all()));
+        $result = LinkFacade::update($link, $request->json()->all());
+        return \request()->json($result->getStatus(), $result);
     }
 
     /**
@@ -74,13 +76,13 @@ class LinkController extends Controller
      */
     public function show(Link $link): mixed
     {
-        $response = [
+        $data = [
             'short_url' => $link->short_url,
             'long_url'  => $link->long_url,
             'title'     => $link->title,
             'tags'      => $link->tags
         ];
-        return \request()->json(200, [$response]);
+        return \request()->json(200, [$data]);
     }
 
     /**
@@ -93,7 +95,7 @@ class LinkController extends Controller
 
     /**
      * @param Link $link
-     * @return mixed|\Symfony\Component\HttpFoundation\ParameterBag|null
+     * @return mixed
      */
     public function getStatistic(Link $link): mixed
     {
@@ -101,14 +103,13 @@ class LinkController extends Controller
     }
 
     /**
+     * @param Visitor $visitors
      * @param Request $request
-     * @return mixed|\Symfony\Component\HttpFoundation\ParameterBag|null
+     * @return mixed
      */
-    public function visitorsStatistics(Request $request): mixed
+    public function visitorsStatistics(Visitor $visitors, Request $request): mixed
     {
-        $from = $request->get('from') ? Carbon::create($request->get('form')) : null;
-        $to = $request->get('to') ? Carbon::create($request->get('to')) : Carbon::now();
-
-        return \request()->json(200, VisitorStatistic::getStatisticForPeriod($from, $to));
+        $result = VisitorStatistic::getStatistic($visitors->filter(new VisitorsFilter($request->all())));
+        return \request()->json($result->getStatus(), $result);
     }
 }
